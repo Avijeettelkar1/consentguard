@@ -1,66 +1,61 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Activity,
   AlertTriangle,
   ArrowRight,
   BadgeCheck,
-  BarChart3,
   Check,
   ChevronDown,
   Cookie,
   ExternalLink,
   FileText,
-  Gauge,
   Globe2,
+  Languages,
   Loader2,
   Lock,
-  RefreshCw,
   Search,
   ShieldCheck,
-  ShieldQuestion,
+  SlidersHorizontal,
   Sparkles,
-  TriangleAlert,
   X,
+  XCircle,
 } from "lucide-react";
+import ConsentScene from "./ConsentScene.jsx";
 import "./styles.css";
 
 const DEFAULT_API_URL = "https://consentguard-production.up.railway.app";
-
-const initialExamples = [
-  "https://www.check24.de/",
-  "https://www.bbc.com/",
-  "https://www.daytona.io/",
+const examples = ["check24.de", "bbc.com", "daytona.io"];
+const scanSteps = [
+  "Creating isolated Daytona sandbox",
+  "Launching clean browser",
+  "Testing Accept all path",
+  "Testing Reject all path",
+  "Comparing trackers and cookies",
+  "Preparing plain-English report",
 ];
 
 function App() {
-  const [url, setUrl] = useState(initialExamples[0]);
-  const [status, setStatus] = useState("Ready to run a live consent scan.");
-  const [health, setHealth] = useState("idle");
+  const [url, setUrl] = useState("");
+  const [language, setLanguage] = useState("en");
+  const [cookieDialog, setCookieDialog] = useState(() => !localStorage.getItem("cg-cookie-choice"));
   const [loading, setLoading] = useState(false);
+  const [stepIndex, setStepIndex] = useState(0);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const apiUrl = useMemo(() => {
     const override = new URLSearchParams(window.location.search).get("api");
     return (override || DEFAULT_API_URL).replace(/\/$/, "");
   }, []);
+  const sceneTone = result ? reportToneFromData(result) : error ? "bad" : loading ? "ready" : "ready";
 
-  async function checkApi() {
-    setHealth("checking");
-    setStatus("Checking scanner backend...");
-    setError("");
-    try {
-      const response = await fetch(`${apiUrl}/health`);
-      if (!response.ok) throw new Error("Backend did not respond correctly.");
-      const data = await response.json();
-      setHealth(data.daytona_configured ? "ok" : "warn");
-      setStatus(data.daytona_configured ? "Scanner backend is online." : "Backend is online, but the browser sandbox is not configured.");
-    } catch (err) {
-      setHealth("bad");
-      setStatus("Backend check failed.");
-      setError(friendlyError(err.message));
-    }
-  }
+  useEffect(() => {
+    if (!loading) return undefined;
+    const timer = window.setInterval(() => {
+      setStepIndex((current) => Math.min(current + 1, scanSteps.length - 1));
+    }, 1600);
+    return () => window.clearInterval(timer);
+  }, [loading]);
 
   async function runScan(event) {
     event?.preventDefault();
@@ -70,9 +65,9 @@ function App() {
     }
 
     setLoading(true);
+    setStepIndex(0);
     setResult(null);
     setError("");
-    setStatus("Opening clean browsers and testing both consent choices...");
 
     try {
       const response = await fetch(`${apiUrl}/scan`, {
@@ -83,124 +78,126 @@ function App() {
       if (!response.ok) throw new Error(await response.text());
       const data = await response.json();
       setResult(data);
-      setStatus("Scan complete.");
+      setStepIndex(scanSteps.length - 1);
     } catch (err) {
-      setStatus("Scan failed.");
       setError(friendlyError(err.message));
     } finally {
       setLoading(false);
     }
   }
 
+  function chooseCookie(choice) {
+    localStorage.setItem("cg-cookie-choice", choice);
+    setCookieDialog(false);
+  }
+
   return (
-    <div className="app-shell">
-      <TopBar health={health} onHealth={checkApi} />
-      <main>
-        <section className="workspace">
-          <div className="scan-card">
-            <div className="scan-copy">
-              <div className="eyebrow"><Sparkles size={16} /> Live privacy scanner</div>
-              <h1>Find what still tracks visitors after they reject cookies.</h1>
-              <p>
-                ConsentGuard tests the accept and reject paths in real browsers, compares the traffic, and explains the result without burying people in compliance jargon.
-              </p>
-            </div>
+    <div className="trackable-shell">
+      <header className="site-header">
+        <button className="brand-button" type="button">
+          <span className="brand-spark"><Sparkles size={18} /></span>
+          ConsentGuard
+        </button>
+        <LanguageToggle language={language} setLanguage={setLanguage} />
+      </header>
 
-            <form className="scan-form" onSubmit={runScan}>
-              <div className="input-wrap">
-                <Globe2 size={20} />
-                <input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://example.com" />
-              </div>
-              <button className="primary-button" disabled={loading}>
-                {loading ? <Loader2 className="spin" size={18} /> : <Search size={18} />}
-                {loading ? "Scanning" : "Scan site"}
-              </button>
-            </form>
-
-            <div className="example-row">
-              {initialExamples.map((item) => (
-                <button key={item} type="button" onClick={() => setUrl(item)}>{domainName(item)}</button>
-              ))}
-            </div>
-
-            <div className="status-line">
-              <span className={`status-dot ${loading ? "pulse" : health}`}></span>
-              <span>{status}</span>
-            </div>
-
-            {error ? <div className="error-box"><AlertTriangle size={18} /> {error}</div> : null}
+      <main className="landing-main">
+        <section className="hero">
+          <div className="sandbox-pill">
+            <ShieldCheck size={18} />
+            <span>Powered by isolated Daytona sandboxes</span>
           </div>
 
-          <div className="preview-card">
-            <div className="browser-frame">
-              <div className="browser-top">
-                <span></span><span></span><span></span>
-                <div>consentguard.live/scan</div>
-              </div>
-              <div className="browser-body">
-                <div className="scan-visual">
-                  <div className="shield-orbit"><ShieldCheck size={56} /></div>
-                  <div className="signal-card one"><Cookie size={18} /> Cookies</div>
-                  <div className="signal-card two"><Activity size={18} /> Requests</div>
-                  <div className="signal-card three"><Lock size={18} /> Consent</div>
-                </div>
-              </div>
-            </div>
-            <div className="mini-grid">
-              <MiniFact icon={BadgeCheck} label="Accept path" value="Measured" />
-              <MiniFact icon={ShieldQuestion} label="Reject path" value="Compared" />
-              <MiniFact icon={FileText} label="Report" value="Plain English" />
-            </div>
+          <h1>
+            See what every website
+            <span> tracks after consent.</span>
+          </h1>
+          <p>Scan any website to reveal trackers, cookies, and network activity after Accept and Reject choices.</p>
+
+          <form className="scanner-bar" onSubmit={runScan}>
+            <Globe2 size={21} />
+            <input
+              value={url}
+              onChange={(event) => setUrl(event.target.value)}
+              placeholder="Enter a website URL — try check24.de"
+              autoComplete="url"
+            />
+            <button disabled={loading || !url.trim()} type="submit">
+              {loading ? "Scanning" : "Scan"}
+              {loading ? <Loader2 className="spin" size={18} /> : <ArrowRight size={18} />}
+            </button>
+          </form>
+
+          <div className="try-row">
+            <span>Try:</span>
+            {examples.map((example) => (
+              <button key={example} type="button" onClick={() => setUrl(example)}>{example}</button>
+            ))}
           </div>
+
+          {error ? <div className="error-banner"><AlertTriangle size={18} /> {error}</div> : null}
         </section>
 
-        {loading ? <LoadingPanel /> : null}
-        {result ? <Report data={result} /> : <EmptyState />}
+        <section className="sandbox-stage">
+          <ConsentScene tone={sceneTone} loading={loading} />
+          <SandboxConnection loading={loading} stepIndex={stepIndex} result={result} />
+        </section>
+
+        {result ? <Report data={result} /> : null}
       </main>
+
+      <Footer language={language} setLanguage={setLanguage} />
+      {cookieDialog ? <CookieDialog onChoice={chooseCookie} /> : null}
     </div>
   );
 }
 
-function TopBar({ health, onHealth }) {
-  const label = health === "ok" ? "Backend online" : health === "bad" ? "Backend issue" : health === "checking" ? "Checking" : "Check backend";
+function LanguageToggle({ language, setLanguage }) {
   return (
-    <header className="topbar">
-      <div className="brand">
-        <div className="brand-mark"><ShieldCheck size={22} /></div>
+    <div className="language-toggle" role="group" aria-label="Language">
+      <Languages size={16} />
+      {["en", "de"].map((item) => (
+        <button
+          key={item}
+          type="button"
+          aria-pressed={language === item}
+          onClick={() => setLanguage(item)}
+        >
+          {item}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function SandboxConnection({ loading, stepIndex, result }) {
+  const scanner = result?.scan?.scanner || "Daytona sandbox";
+  return (
+    <div className="connection-card">
+      <div className="connection-head">
         <div>
-          <strong>ConsentGuard</strong>
-          <span>Consent scanning for real websites</span>
+          <span>Sandbox connection</span>
+          <strong>{loading ? "Connecting Daytona" : result ? "Scan finished" : "Ready"}</strong>
         </div>
+        <div className={`connection-dot ${loading ? "pulse" : result ? "ok" : ""}`} />
       </div>
-      <button className="ghost-button" onClick={onHealth}>
-        {health === "checking" ? <Loader2 className="spin" size={17} /> : <RefreshCw size={17} />}
-        {label}
-      </button>
-    </header>
-  );
-}
-
-function LoadingPanel() {
-  return (
-    <section className="loading-panel">
-      <div>
-        <strong>Running two clean browser sessions</strong>
-        <span>One accepts cookies, one rejects them. We compare the difference when both finish.</span>
+      <div className="step-list">
+        {scanSteps.map((step, index) => {
+          const complete = result || index < stepIndex || (!loading && index === 0);
+          const current = loading && index === stepIndex;
+          return (
+            <div className={`step-item ${complete ? "complete" : ""} ${current ? "current" : ""}`} key={step}>
+              <span>{complete ? <Check size={15} /> : current ? <Loader2 className="spin" size={15} /> : index + 1}</span>
+              <p>{step}</p>
+            </div>
+          );
+        })}
       </div>
-      <div className="loading-track"><div></div></div>
-    </section>
-  );
-}
-
-function EmptyState() {
-  return (
-    <section className="empty-state">
-      <div className="empty-icon"><Gauge size={28} /></div>
-      <div>
-        <h2>Your scan report will appear here.</h2>
-        <p>Start with a site that shows a cookie banner. The report will highlight what changed, what kept tracking, and what needs review.</p>
+      <div className="runtime-line">
+        <Lock size={15} />
+        <span>{result ? `Scanner used: ${scanner}` : "Each scan runs in an isolated, short-lived browser sandbox."}</span>
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -217,91 +214,49 @@ function Report({ data }) {
   const afterReject = counts.tracking_events_after_reject ?? tagAudit.reject_payload_count ?? 0;
   const blocked = counts.tracking_events_blocked_by_reject ?? 0;
   const tone = reportTone(scan, confirmed, review, afterReject, plain.status);
-  const score = privacyScore(scan, confirmed, review, afterReject, tone);
 
   return (
-    <div className="report">
-      <section className={`verdict-card ${tone}`}>
+    <section className="results-panel">
+      <div className={`verdict-strip ${tone}`}>
         <div>
-          <div className="verdict-label">{verdictLabel(tone)}</div>
+          <span>{verdictLabel(tone)}</span>
           <h2>{plain.status || "Scan result"}</h2>
           <p>{plain.result}</p>
-          <p className="muted-text">{plain.comparison}</p>
-          <p className="takeaway">{plain.user_takeaway}</p>
+          <strong>{plain.user_takeaway}</strong>
         </div>
-        <div className="score-ring" style={{ "--score": Number(score) || 42 }}>
-          <strong>{score}</strong>
+        <div className="result-score">
+          <strong>{privacyScore(scan, confirmed, review, afterReject, tone)}</strong>
           <span>privacy signal</span>
         </div>
-      </section>
+      </div>
 
-      <section className="metric-grid">
-        <Metric icon={Check} label="Accept test" value={scan.clicked_accept ? "Completed" : "Missed"} tone={scan.clicked_accept ? "good" : "warn"} />
-        <Metric icon={scan.clicked_reject ? Check : X} label="Reject test" value={scan.clicked_reject ? "Completed" : "Missed"} tone={scan.clicked_reject ? "good" : "warn"} />
-        <Metric icon={BarChart3} label="Tracking blocked" value={blocked} tone={blocked ? "good" : "neutral"} />
-        <Metric icon={TriangleAlert} label="Tracking after reject" value={afterReject} tone={afterReject ? "bad" : "good"} />
-      </section>
+      <div className="metric-grid">
+        <Metric icon={scan.clicked_accept ? Check : XCircle} label="Accept clicked" value={scan.clicked_accept ? "Yes" : "No"} tone={scan.clicked_accept ? "good" : "warn"} />
+        <Metric icon={scan.clicked_reject ? Check : XCircle} label="Reject clicked" value={scan.clicked_reject ? "Yes" : "No"} tone={scan.clicked_reject ? "good" : "warn"} />
+        <Metric icon={Activity} label="Blocked after reject" value={blocked} tone={blocked ? "good" : "neutral"} />
+        <Metric icon={AlertTriangle} label="Tracking after reject" value={afterReject} tone={afterReject ? "bad" : "good"} />
+      </div>
 
-      <section className="report-grid">
-        <div className="main-column">
-          <Panel title="What changed after consent?" subtitle="The easiest way to see if reject worked is to compare both paths.">
-            <DomainSection title="Appeared only after accepting" domains={comparison.accept_only_domains || []} empty="No extra services appeared only after accept." />
-            <DomainSection title="Appeared only after rejecting" domains={comparison.reject_only_domains || []} empty="No extra services appeared only after reject." />
-          </Panel>
-
-          <Panel title="Tracking evidence" subtitle="This separates real tracking events from services that merely loaded.">
-            <EvidenceTable tagAudit={tagAudit} />
-          </Panel>
-
-          <Panel title="Cookies after reject" subtitle="We show names and domains, not values, because values can identify people.">
-            <CookieTable cookies={riskyCookies} />
-          </Panel>
-        </div>
-
-        <aside className="side-column">
-          <Panel title="Consent controls" subtitle="Which banner buttons the scanner clicked.">
-            <ConsentStep label="Accept all" clicked={scan.clicked_accept} selector={scan.accept_clicked_selector} />
-            <ConsentStep label="Reject all" clicked={scan.clicked_reject} selector={scan.reject_clicked_selector} />
-          </Panel>
-
-          <Panel title="Recommended action" subtitle={actionSummary(confirmed, review)}>
-            <details className="details-card">
-              <summary>View fix notes <ChevronDown size={16} /></summary>
-              <pre>{fixText(data.fixes)}</pre>
-            </details>
-          </Panel>
-
-          <Panel title="Risk snapshot" subtitle="A quick compliance-facing view.">
-            <RiskRow label="Confirmed issues" value={confirmed} tone={confirmed ? "bad" : "good"} />
-            <RiskRow label="Needs review" value={review} tone={review ? "warn" : "good"} />
-            <details className="details-card">
-              <summary>View risk details <ChevronDown size={16} /></summary>
-              <pre>{JSON.stringify(data.exposure || {}, null, 2)}</pre>
-            </details>
-          </Panel>
-
-          <Panel title="Advanced report" subtitle="For privacy teams and developers.">
-            <details className="details-card">
-              <summary>Raw comparison <ChevronDown size={16} /></summary>
-              <pre>{rawComparison(comparison)}</pre>
-            </details>
-            <details className="details-card">
-              <summary>Tag-level notes <ChevronDown size={16} /></summary>
-              <pre>{plainLanguageVerdict(tagAudit)}</pre>
-            </details>
-            <details className="details-card">
-              <summary>Draft complaint <ChevronDown size={16} /></summary>
-              <pre>{data.complaint || ""}</pre>
-            </details>
-          </Panel>
-        </aside>
-      </section>
-    </div>
+      <div className="report-grid">
+        <Panel title="What changed?" subtitle="Top services observed only in one consent path.">
+          <DomainBlock title="Only after accepting" domains={comparison.accept_only_domains || []} />
+          <DomainBlock title="Only after rejecting" domains={comparison.reject_only_domains || []} />
+        </Panel>
+        <Panel title="Tracking evidence" subtitle="Real event payloads are separated from tag-manager loaders.">
+          <EvidenceTable tagAudit={tagAudit} />
+        </Panel>
+        <Panel title="Cookies after reject" subtitle="Cookie values are never displayed.">
+          <CookieTable cookies={riskyCookies} />
+        </Panel>
+        <Panel title="Recommended action" subtitle={actionSummary(confirmed, review)}>
+          <details>
+            <summary>View full fix notes <ChevronDown size={16} /></summary>
+            <pre>{fixText(data.fixes)}</pre>
+          </details>
+        </Panel>
+      </div>
+    </section>
   );
-}
-
-function MiniFact({ icon: Icon, label, value }) {
-  return <div className="mini-fact"><Icon size={18} /><span>{label}</span><strong>{value}</strong></div>;
 }
 
 function Metric({ icon: Icon, label, value, tone }) {
@@ -317,23 +272,21 @@ function Metric({ icon: Icon, label, value, tone }) {
 function Panel({ title, subtitle, children }) {
   return (
     <section className="panel">
-      <div className="panel-head">
-        <h3>{title}</h3>
-        {subtitle ? <p>{subtitle}</p> : null}
-      </div>
+      <h3>{title}</h3>
+      <p>{subtitle}</p>
       {children}
     </section>
   );
 }
 
-function DomainSection({ title, domains, empty }) {
+function DomainBlock({ title, domains }) {
   return (
-    <div className="domain-section">
+    <div className="domain-block">
       <h4>{title}</h4>
       <div className="chip-row">
-        {domains.length ? domains.slice(0, 14).map((item) => (
+        {domains.length ? domains.slice(0, 10).map((item) => (
           <span className="chip" key={`${title}-${item.domain}`}>{item.domain}<strong>{item.count}</strong></span>
-        )) : <div className="soft-empty">{empty}</div>}
+        )) : <div className="empty-soft">None observed.</div>}
       </div>
     </div>
   );
@@ -345,9 +298,7 @@ function EvidenceTable({ tagAudit }) {
     ...(tagAudit.loader_evidence_after_reject || []).map((item) => ({ ...item, bucket: "loader after reject" })),
     ...(tagAudit.blocked_by_reject || []).slice(0, 10).map((item) => ({ ...item, bucket: "blocked by reject" })),
   ];
-
-  if (!rows.length) return <div className="soft-empty">No tracking evidence was detected in this scan.</div>;
-
+  if (!rows.length) return <div className="empty-soft">No tracking evidence was detected.</div>;
   return (
     <div className="table-wrap">
       <table>
@@ -368,7 +319,7 @@ function EvidenceTable({ tagAudit }) {
 }
 
 function CookieTable({ cookies }) {
-  if (!cookies.length) return <div className="soft-empty">No concerning cookies were detected after rejection.</div>;
+  if (!cookies.length) return <div className="empty-soft">No concerning cookies were detected after rejection.</div>;
   return (
     <div className="table-wrap">
       <table>
@@ -388,20 +339,61 @@ function CookieTable({ cookies }) {
   );
 }
 
-function ConsentStep({ label, clicked, selector }) {
+function Footer({ language, setLanguage }) {
   return (
-    <div className="consent-step">
-      <span className={`step-icon ${clicked ? "good" : "warn"}`}>{clicked ? <Check size={17} /> : <AlertTriangle size={17} />}</span>
-      <div>
-        <strong>{label}</strong>
-        <p>{selector ? `Clicked: ${cleanSelector(selector)}` : "No matching button was clicked."}</p>
+    <footer className="site-footer">
+      <span>© 2026 ConsentGuard · Privacy intelligence</span>
+      <nav>
+        <a href="#imprint">Imprint</a>
+        <a href="#privacy">Privacy</a>
+        <a href="#terms">Terms</a>
+        <a href="#cookies">Cookies</a>
+      </nav>
+      <div className="footer-right">
+        <LanguageToggle language={language} setLanguage={setLanguage} />
+        <span><ShieldCheck size={15} /> Ephemeral Daytona sandboxes</span>
+      </div>
+    </footer>
+  );
+}
+
+function CookieDialog({ onChoice }) {
+  return (
+    <div className="cookie-overlay" role="dialog" aria-modal="true" aria-label="Cookie settings">
+      <div className="cookie-modal">
+        <div className="cookie-head">
+          <div className="cookie-icon"><Cookie size={22} /></div>
+          <div>
+            <h3>Cookie settings</h3>
+            <p>Privacy Preferences</p>
+          </div>
+          <button type="button" aria-label="Dismiss" onClick={() => onChoice("dismiss")}>
+            <X size={18} />
+          </button>
+        </div>
+        <p>
+          We use cookies to optimize this product experience, analyze traffic, and improve scans. Choose your preferences below.
+          <a href="#cookies"> Cookies <ExternalLink size={14} /></a>
+        </p>
+        <div className="cookie-actions">
+          <button type="button" onClick={() => onChoice("accept")}>Accept all</button>
+          <button type="button" onClick={() => onChoice("reject")}>Reject all</button>
+          <button type="button" onClick={() => onChoice("customize")}><SlidersHorizontal size={16} /> Customize settings</button>
+        </div>
       </div>
     </div>
   );
 }
 
-function RiskRow({ label, value, tone }) {
-  return <div className="risk-row"><span>{label}</span><strong className={tone}>{value}</strong></div>;
+function reportToneFromData(data) {
+  const scan = data.scan || {};
+  const plain = data.plain_summary || {};
+  const counts = plain.plain_counts || {};
+  const tagAudit = data.tag_audit || {};
+  const confirmed = scan.violation_count ?? (data.undeclared || []).length;
+  const review = scan.needs_review_count ?? (data.needs_review || []).length;
+  const afterReject = counts.tracking_events_after_reject ?? tagAudit.reject_payload_count ?? 0;
+  return reportTone(scan, confirmed, review, afterReject, plain.status);
 }
 
 function reportTone(scan, confirmed, review, afterReject, status) {
@@ -425,48 +417,13 @@ function verdictLabel(tone) {
 }
 
 function actionSummary(confirmed, review) {
-  if (confirmed) return "Put the listed trackers behind real opt-in consent, then scan again.";
-  if (review) return "Review supporting services and confirm they are not sending tracking events after reject.";
+  if (confirmed) return "Move the listed services behind explicit opt-in consent, then scan again.";
+  if (review) return "Review supporting services and confirm they are not sending tracking events after rejection.";
   return "No urgent fix was suggested by this scan.";
 }
 
 function fixText(fixes = {}) {
   return [stripHtml(fixes.policy_fix || "No policy fix needed."), fixes.banner_fix || "No banner fix needed."].join("\n\n");
-}
-
-function rawComparison(comparison = {}) {
-  return [
-    `Extra activity after accepting: ${comparison.accept_only_request_count ?? 0} request(s)`,
-    `Activity only after rejecting: ${comparison.reject_only_request_count ?? 0} request(s)`,
-    `Activity in both tests: ${comparison.common_request_count ?? 0} request(s)`,
-    "",
-    "Services only after accepting:",
-    formatDomains(comparison.accept_only_domains || []),
-    "",
-    "Services only after rejecting:",
-    formatDomains(comparison.reject_only_domains || []),
-    "",
-    "Cookies only after accepting:",
-    formatList(comparison.accept_only_cookies || []),
-    "",
-    "Cookies only after rejecting:",
-    formatList(comparison.reject_only_cookies || []),
-  ].join("\n");
-}
-
-function plainLanguageVerdict(audit = {}) {
-  switch (audit.verdict) {
-    case "non_essential_payloads_after_reject":
-      return "Problem found: advertising or analytics events were still sent after rejecting cookies.";
-    case "gtm_loader_after_reject_only":
-      return "Review recommended: a tag manager still loaded after rejection, but it did not send advertising or analytics events in this scan.";
-    case "no_tracking_payloads_after_reject":
-      return "Looks clean: no advertising or analytics events were seen after rejection.";
-    case "consent_controls_not_clicked":
-      return "Inconclusive: the scanner could not click both cookie choices.";
-    default:
-      return audit.summary || "No tag-level note available.";
-  }
 }
 
 function humanBucket(bucket) {
@@ -502,24 +459,11 @@ function humanSeverity(severity) {
 
 function domainName(value) {
   try {
-    return new URL(value).hostname.replace(/^www\./, "");
+    const normalized = value.startsWith("http") ? value : `https://${value}`;
+    return new URL(normalized).hostname.replace(/^www\./, "");
   } catch {
     return value;
   }
-}
-
-function cleanSelector(value) {
-  return String(value || "").replace(/^dynamic:/, "").slice(0, 92);
-}
-
-function formatDomains(domains) {
-  if (!domains.length) return "- none";
-  return domains.map((item) => `- ${item.domain} (${item.count})`).join("\n");
-}
-
-function formatList(values) {
-  if (!values.length) return "- none";
-  return values.slice(0, 30).map((value) => `- ${value}`).join("\n");
 }
 
 function stripHtml(value) {
