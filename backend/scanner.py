@@ -368,18 +368,25 @@ def _render_playwright_script(url: str) -> str:
 
 
 def _run_daytona_scan(url: str) -> dict:
-    from daytona import CreateSandboxFromSnapshotParams, Daytona
+    from daytona_sdk import CreateSandboxFromSnapshotParams, Daytona
 
     daytona = Daytona()
-    sandbox = daytona.create(CreateSandboxFromSnapshotParams(snapshot_id=SNAPSHOT_ID))
+    sandbox = daytona.create(
+        CreateSandboxFromSnapshotParams(
+            snapshot=SNAPSHOT_ID,
+            auto_stop_interval=5,
+            auto_archive_interval=10,
+        ),
+        timeout=120,
+    )
     try:
         script = _render_playwright_script(url)
         encoded = base64.b64encode(script.encode("utf-8")).decode("ascii")
         command = f"python3 -c \"import base64; exec(base64.b64decode('{encoded}'))\""
-        result = sandbox.process.start_and_wait(command, timeout=100)
+        result = sandbox.process.exec(command, timeout=120)
         return json.loads((result.result or "").strip())
     finally:
-        sandbox.delete()
+        daytona.delete(sandbox)
 
 
 def _run_local_playwright_scan(url: str) -> dict:
