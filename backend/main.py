@@ -46,6 +46,16 @@ async def startup() -> None:
             pass
 
 
+@app.get("/")
+async def root() -> dict:
+    return {
+        "name": "ConsentGuard API",
+        "status": "ok",
+        "health": "/health",
+        "scan": "/scan",
+    }
+
+
 @app.get("/health")
 async def health() -> dict:
     return {
