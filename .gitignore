@@ -4,6 +4,9 @@ __pycache__/
 .env
 backend/.env
 *.log
+node_modules/
+dist/
+output/
 
 .vercel
 .env*
