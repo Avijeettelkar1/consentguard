@@ -10,12 +10,15 @@ export default function ConsentScene({ tone = "ready", loading = false }) {
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-    camera.position.set(0, 0.25, 9.6);
+    camera.position.set(0, 0.2, 8.4);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.setClearColor(0x000000, 0);
+    renderer.domElement.style.width = "100%";
+    renderer.domElement.style.height = "100%";
+    renderer.domElement.style.display = "block";
     mount.appendChild(renderer.domElement);
 
     const colorMap = {
@@ -27,8 +30,8 @@ export default function ConsentScene({ tone = "ready", loading = false }) {
     const accent = colorMap[tone] || colorMap.ready;
 
     const group = new THREE.Group();
-    group.scale.setScalar(0.72);
-    group.position.set(0, 0.28, 0);
+    group.scale.setScalar(0.82);
+    group.position.set(0, 0.45, 0);
     scene.add(group);
 
     const coreMaterial = new THREE.MeshPhysicalMaterial({
@@ -121,7 +124,7 @@ export default function ConsentScene({ tone = "ready", loading = false }) {
       const rect = mount.getBoundingClientRect();
       const width = Math.max(1, rect.width);
       const height = Math.max(1, rect.height);
-      renderer.setSize(width, height, false);
+      renderer.setSize(width, height, true);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
     };
