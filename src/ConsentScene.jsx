@@ -10,7 +10,7 @@ export default function ConsentScene({ tone = "ready", loading = false }) {
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-    camera.position.set(0, 0.35, 7.2);
+    camera.position.set(0, 0.25, 9.6);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -27,6 +27,8 @@ export default function ConsentScene({ tone = "ready", loading = false }) {
     const accent = colorMap[tone] || colorMap.ready;
 
     const group = new THREE.Group();
+    group.scale.setScalar(0.72);
+    group.position.set(0, 0.28, 0);
     scene.add(group);
 
     const coreMaterial = new THREE.MeshPhysicalMaterial({
@@ -61,7 +63,7 @@ export default function ConsentScene({ tone = "ready", loading = false }) {
       opacity: 0.55,
     });
 
-    const rings = [1.85, 2.45, 3.05].map((radius, index) => {
+    const rings = [1.55, 2.05, 2.55].map((radius, index) => {
       const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.012, 12, 132), ringMaterial.clone());
       ring.rotation.x = Math.PI / 2.4 + index * 0.32;
       ring.rotation.y = index * 0.55;
@@ -73,7 +75,7 @@ export default function ConsentScene({ tone = "ready", loading = false }) {
     const particleCount = 120;
     const positions = new Float32Array(particleCount * 3);
     for (let index = 0; index < particleCount; index += 1) {
-      const radius = 2.2 + Math.random() * 1.8;
+      const radius = 1.9 + Math.random() * 1.35;
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
       positions[index * 3] = radius * Math.sin(phi) * Math.cos(theta);
@@ -167,10 +169,9 @@ export default function ConsentScene({ tone = "ready", loading = false }) {
       <div className="three-canvas" ref={mountRef} />
       <div className="scene-badge top">Consent signal</div>
       <div className="scene-badge right">Browser sandbox</div>
-      <div className="scene-badge bottom">Tracker graph</div>
       <div className="scene-caption">
         <strong>3D scan graph</strong>
-        <span>Live browser evidence is mapped into consent, cookie, and request layers.</span>
+        <span>Daytona opens an isolated browser and maps consent evidence into this live graph.</span>
       </div>
     </div>
   );
