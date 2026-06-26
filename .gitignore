@@ -4,3 +4,7 @@ __pycache__/
 .env
 backend/.env
 *.log
+
+.vercel
+.env*
+.playwright-cli/
