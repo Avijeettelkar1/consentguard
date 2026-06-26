@@ -4,6 +4,7 @@ FastAPI application — starts as MOCK, replace with real imports at Hour 3.
 Run: uvicorn main:app --reload --port 8000
 """
 import os
+import traceback
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -62,7 +63,7 @@ async def scan_endpoint(req: ScanRequest):
         analysis = analyze_violations(violations, policy_text, scan_data.get("page_html_for_fallback", ""))
         fixes = generate_fixes(analysis["undeclared"], scan_data.get("consent_platform", "unknown"), url)
         block_domains = [t["domain"] for t in analysis["undeclared"]]
-        verify_result = await run_verify_scan(url, block_domains)
+        verify_result = await run_verify_scan(url, block_domains, cached_after=scan_data["after"])
         exposure = calculate_exposure(len(analysis["undeclared"]))
         complaint = generate_complaint(url, analysis["undeclared"], exposure)
 
@@ -84,6 +85,7 @@ async def scan_endpoint(req: ScanRequest):
             "complaint": complaint,
         }
     except Exception as e:
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 

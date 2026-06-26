@@ -86,10 +86,14 @@ Return only the letter text. No subject line, no extra commentary."""
     return response.choices[0].message.content.strip()
 
 
-async def run_verify_scan(url: str, block_domains: list[str]) -> dict:
+async def run_verify_scan(url: str, block_domains: list[str], cached_after: list[str] | None = None) -> dict:
     try:
-        result = await run_scan(url)
-        after = result.get("after", [])
+        # Use cached scan results to avoid a second full Daytona scan
+        if cached_after is not None:
+            after = cached_after
+        else:
+            result = await run_scan(url)
+            after = result.get("after", [])
         remaining = [r for r in after if any(d in r for d in block_domains)]
         return {
             "remaining_requests": remaining,

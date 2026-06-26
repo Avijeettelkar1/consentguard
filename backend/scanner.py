@@ -9,6 +9,7 @@ Local mode is used for development and testing against the test_site/.
 """
 import os
 import json
+import base64
 import asyncio
 from dotenv import load_dotenv
 load_dotenv()
@@ -139,7 +140,7 @@ async def _run_local(url: str) -> dict:
 
 def _run_daytona(url: str) -> dict:
     """Run Playwright inside a Daytona cloud sandbox."""
-    from daytona import Daytona, CreateSandboxFromSnapshotParams
+    from daytona_sdk import Daytona, CreateSandboxFromSnapshotParams
 
     script_body = f"""
 import asyncio, json
@@ -193,10 +194,10 @@ async def scan():
             except Exception:
                 continue
 
-        await page.wait_for_timeout(3000)
+        await page.wait_for_timeout(1500)
         page.on("request", lambda req: after_requests.append(req.url))
         await page.reload(wait_until="domcontentloaded", timeout=45000)
-        await page.wait_for_timeout(3000)
+        await page.wait_for_timeout(1500)
         await browser.close()
 
     print(json.dumps({{
@@ -208,16 +209,36 @@ async def scan():
         "page_html_for_fallback": page_html[:5000],
     }}))
 
-asyncio.run(scan())
+try:
+    asyncio.run(scan())
+except Exception as _e:
+    import traceback as _tb
+    print(json.dumps({{"error": str(_e), "traceback": _tb.format_exc()}}))
 """
+    script_b64 = base64.b64encode(script_body.encode()).decode()
     daytona = Daytona()
-    sandbox = daytona.create(CreateSandboxFromSnapshotParams(snapshot_id=SNAPSHOT_ID))
+    sandbox = daytona.create(CreateSandboxFromSnapshotParams(
+        snapshot=SNAPSHOT_ID,
+        network_block_all=False,
+    ))
     try:
-        result = sandbox.process.start_and_wait(
-            f"python3 -c {json.dumps(script_body)}",
-            timeout=90,
+        result = sandbox.process.exec(
+            f"echo '{script_b64}' | base64 -d | python3",
+            timeout=120,
         )
-        return json.loads(result.result.strip())
+        raw = (result.result or "").strip()
+        print(f"[DAYTONA] exit_code={result.exit_code} result_len={len(raw)} preview={raw[:300]!r}")
+        if not raw:
+            raise RuntimeError(f"Daytona script returned empty output (exit_code={result.exit_code})")
+        # The script prints exactly one JSON object on the last line
+        for line in reversed(raw.splitlines()):
+            line = line.strip()
+            if line.startswith("{"):
+                parsed = json.loads(line)
+                if "error" in parsed and "before" not in parsed:
+                    raise RuntimeError(f"Daytona script error: {parsed['error']}")
+                return parsed
+        raise RuntimeError(f"No JSON found in Daytona output: {raw[:500]}")
     finally:
         sandbox.delete()
 
@@ -225,7 +246,9 @@ asyncio.run(scan())
 async def run_scan(url: str) -> dict:
     if LOCAL_PLAYWRIGHT:
         return await _run_local(url)
-    return _run_daytona(url)
+    # Run blocking Daytona SDK in a thread to avoid asyncio.run() conflicts
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _run_daytona, url)
 
 
 if __name__ == "__main__":
