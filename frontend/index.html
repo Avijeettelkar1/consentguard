@@ -41,7 +41,7 @@
     }
     .bar {
       display: grid;
-      grid-template-columns: 1fr 180px 120px;
+      grid-template-columns: 1fr 120px;
       gap: 10px;
       margin-bottom: 14px;
     }
@@ -149,10 +149,10 @@
   <main>
     <div class="bar">
       <input id="urlInput" value="example.com" placeholder="Website URL">
-      <input id="apiInput" value="http://localhost:8000" placeholder="API URL">
+      <input id="apiInput" type="hidden" value="https://consentguard-production.up.railway.app">
       <button id="scanBtn">Scan</button>
     </div>
-    <div class="status" id="status">Start the backend, then scan a URL.</div>
+    <div class="status" id="status">Enter a website URL to scan its cookie consent behavior.</div>
 
     <div id="results" class="hide">
       <div class="summary">
@@ -226,7 +226,10 @@
   </main>
 
   <script>
+    const DEFAULT_API_URL = "https://consentguard-production.up.railway.app";
     const $ = (id) => document.getElementById(id);
+    const apiOverride = new URLSearchParams(window.location.search).get("api");
+    $("apiInput").value = (apiOverride || DEFAULT_API_URL).replace(/\/$/, "");
 
     $("healthBtn").addEventListener("click", async () => {
       const api = $("apiInput").value.replace(/\/$/, "");
